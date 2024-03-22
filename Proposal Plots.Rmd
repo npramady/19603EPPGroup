@@ -1,0 +1,172 @@
+---
+title: "19603 Group Project Plots"
+date: "Mar 14"
+output: pdf_document
+editor_options: 
+chunk_output_type: console
+---
+
+# Homework 6
+
+```{r, include = TRUE, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(modelr)
+
+# Load data
+df <- read_csv("G:/My Drive/Courses/19603 Data Science/Group Project/alleghenycounty_crashdata.csv")
+```
+# Plots for cause of crash vs Fatal or Major Injury
+
+```{r, warning = FALSE, message = FALSE, fig.width = 10, fig.height = 3}
+#making a column for cause of crash
+df_causecount<-df %>%
+  mutate(cause_count=VEHICLE_FAILURE+TRAIN_TROLLEY+PHANTOM_VEHICLE+ALCOHOL_RELATED+CELL_PHONE+NO_CLEARANCE+RUNNING_RED_LT+TAILGATING+CROSS_MEDIAN+CURVE_DVR_ERROR+LIMIT_65MPH+SPEEDING_RELATED+AGGRESSIVE_DRIVING+FATIGUE_ASLEEP)
+
+df_cause<-df_causecount %>%  
+  mutate(df_causecount,cause=
+    case_when(
+      cause_count==0~"unknown",
+      cause_count==1~(case_when(
+      VEHICLE_FAILURE==1~"vehicle failure",
+      TRAIN_TROLLEY==1~"train trolley",
+      PHANTOM_VEHICLE==1~"phantom vehicle",
+      ALCOHOL_RELATED==1~"alcohol related",
+      CELL_PHONE==1~"cell phone",
+      NO_CLEARANCE==1~"no clearance",
+      RUNNING_RED_LT==1~"running red light",
+      TAILGATING==1~"tailgating",
+      CROSS_MEDIAN==1~"cross median",
+      CURVE_DVR_ERROR==1~"curve dvr error",
+      LIMIT_65MPH==1~"driving on limit 65mph",
+      SPEEDING_RELATED==1~"speeding",
+      AGGRESSIVE_DRIVING==1~"aggressive driving",
+      FATIGUE_ASLEEP==1~"fatigue or sleeping",
+    )),
+    cause_count>1~"multiple causes"
+  ))
+
+#make smaller dataset
+df_cause_small<-df_cause%>%
+  select(cause,FATAL_OR_MAJ_INJ)
+  
+# Fit model with cause
+cause_mod<-lm(FATAL_OR_MAJ_INJ~cause, data=df_cause_small)
+summary(cause_mod)
+
+# Make predictions
+cause_fatal_pred<-df_cause_small%>%
+  add_predictions(cause_mod)
+'data_grid(cause) %>%'
+  
+
+# Plot predictions
+ggplot(data=cause_fatal_pred, aes(x=cause))+
+  geom_point(aes(y=pred), color="red")+
+  theme(axis.text.x = element_text(angle = 30, hjust = 0.5, vjust = 0.5))
+
+Shelp("xlab")
+'ggplot(data = cause_fatal_pred) +
+  geom_smooth(aes(x = cause, y = FATAL_OR_MAJ_IN),colour = "red") + 
+  geom_line(aes(y=pred))+
+  facet_wrap(~cause,nrow=2)'
+
+```
+# Plots for time of day vs Fatal or Injury
+```{r, include = TRUE, warning = FALSE, message = FALSE}
+#crashes in hours of a day that is fatal or injury
+df_fatal_inj<-df%>%
+  filter(INJURY_OR_FATAL==1)%>%
+  filter(HOUR_OF_DAY!=99)
+ggplot(data=df_fatal_inj) + geom_bar(aes(x=as.numeric(HOUR_OF_DAY)))+
+  ylab("fatal or injury count")
+
+#count of crashes based on hour of day
+df_hour_noNA99<-subset(df,!is.na(HOUR_OF_DAY)) %>%
+                     filter(!HOUR_OF_DAY==99)
+
+# Fit model with hour
+hour_mod<-lm(INJURY_OR_FATAL~(as.integer(HOUR_OF_DAY)),data=df_hour_noNA99)
+hour_mod<-lm(INJURY_OR_FATAL~poly(as.integer(HOUR_OF_DAY),3),data=df_hour_noNA99)
+summary(hour_mod)
+
+# Make predictions
+hour_fatal_pred<-df_hour_noNA99%>%
+  add_predictions(hour_mod)
+
+# Plot predictions
+ggplot(hour_fatal_pred) +
+    geom_point(aes(x=as.integer(HOUR_OF_DAY),y=pred))+
+    geom_smooth(aes(x=as.integer(HOUR_OF_DAY),y=INJURY_OR_FATAL))+xlab ("hour")
+
+#add residuals
+hour_fatal_resid<-df_hour_noNA99%>%
+  add_residuals(hour_mod)
+
+# Plot residuals
+ggplot(hour_fatal_resid) +
+    geom_smooth(aes(x=as.integer(HOUR_OF_DAY),y=resid))+xlab ("hour")
+
+```
+
+# Plots for time of day vs Fatal or Major Injury
+```{r, include = TRUE, warning = FALSE, message = FALSE}
+#count of crashes based on hour of day
+df_hour_noNA99<-subset(df,!is.na(HOUR_OF_DAY)) %>%
+                     filter(!HOUR_OF_DAY==99)
+ggplot(data=df_hour_noNA99) + geom_bar(aes(x=HOUR_OF_DAY))
+
+# Fit model with hour
+hour_agg_mod<-lm(AGGRESSIVE_DRIVING~poly(as.integer(HOUR_OF_DAY),3),data=df_hour_noNA99)
+summary(hour_agg_mod)
+
+# Make predictions
+hour_agg_pred<-df_hour_noNA99%>%
+  add_predictions(hour_agg_mod)
+
+
+# Plot predictions
+ggplot(hour_agg_pred) +
+    geom_line(aes(x=as.integer(HOUR_OF_DAY),y=pred))+
+    geom_smooth(aes(x=as.integer(HOUR_OF_DAY),y=AGGRESSIVE_DRIVING),color='red')
+
+
+```
+# Plots for time of day vs Fatal or Injury
+```{r, include = TRUE, warning = FALSE, message = FALSE}
+df_fatalinj<-df%>%
+  mutate(df,SLIPPERY_ROAD=
+           ifelse(WET_ROAD|SNOW_SLUSH_ROAD|ICY_ROAD==1,1,0))
+
+df_fatalinj<-df_fatalinj%>%
+  mutate(df_fatalinj,causecount=
+           AGGRESSIVE_DRIVING+ILLUMINATION_DARK+SLIPPERY_ROAD+DISTRACTED+UNBELTED)
+
+df_fatalinj<-df_fatalinj%>%
+  filter(causecount==1)
+df_fatalinj<-df_fatalinj%>% 
+ mutate(df_fatalinj,cause=
+           case_when(
+             AGGRESSIVE_DRIVING==1~"Aggressive",
+             ILLUMINATION_DARK==1~"Poor Illumination",
+             SLIPPERY_ROAD==1~"Slippery Road",
+             DISTRACTED==1~"Distracted",
+             UNBELTED==1~"Unbelted",
+           ))
+
+#make smaller dataset
+df_fatalinj_small<-df_fatalinj%>%
+  select(cause,INJURY_OR_FATAL)
+  
+# Fit model with cause
+cause_mod<-lm(INJURY_OR_FATAL~cause, data=df_fatalinj_small)
+summary(cause_mod)
+
+# Make predictions
+cause_fatalinj_pred<-df_fatalinj_small%>%
+  add_predictions(cause_mod)
+
+# Plot predictions
+ggplot(data=cause_fatalinj_pred, aes(x=cause))+
+  geom_point(aes(y=pred), color="red")+
+  theme(axis.text.x = element_text(angle = 30, hjust = 0.5, vjust = 0.5))
+```
