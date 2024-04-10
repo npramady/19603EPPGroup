@@ -1,0 +1,439 @@
+---
+title: "Final Group Project: Updated Checkpoint Submission"
+author: "Team 4"
+date: "`r Sys.Date()`"
+output:
+  pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, tidy.opts = list(width.cutoff = 60), tidy=TRUE)
+library(formatR)
+```
+
+# Group Members
+- Akshay Bhandari (abhanda2)
+- Courtney Jones (courtnej)
+- Koo Wei De (weidek)
+- Nur Arinta Dara Pramadyani (npramady)
+- Victor Ibarra (victori)
+
+# GitHub Repository
+https://github.com/npramady/19603EPPGroup.git
+
+# Dataset source
+https://data.wprdc.org/dataset/allegheny-county-crash-data
+
+This is a dataset containing the crashes in Allegheny County in 2022. This dataset consists of a variety of factors regarding the crashes, including contributing factors of the crash (i.e. speeding, drug involvement), the time at which the accident occurred, the number of drivers and passengers in the car, injuries and fatalities, and information about the location of the crash (i.e. type of intersection, school zones, etc.). The data was published by the Western Pennsylvania Regional Data Center, and was a top result when we searched for Allegheny County-related data. 
+
+# Introduction
+
+The crash dataset is made up of many features which help to define the accident. This includes descriptions of the environment (ILLUMINATION, WEATHER, ROAD_CONDITION, TIME_OF_DAY, etc), driver behavior (DISTRACTED, IMPAIRED, etc) as well as other individuals (i.e. passengers, pedestrians, cyclists) who are involved in the accident. The vast amount of features and accidents allow us to make certain inference regarding the occurrence of accidents.
+
+# Research question 
+
+The primary goal in this project is to determine the main factors that influence the likelihood of fatal or major injuries occurring in an accident. Identifying these variables and narrowing them to specific geographical locations will ideally allow us to make policy recommendations that may improve road safety. 
+
+The central target variable is FATAL_OR_MAJ_INJ, which is a binary flag that indicates whether an accident involved fatal or major injuries. Our first step in the analysis is to perform regression between the FATAL_OR_MAJ_INJ and several other variables. We then use p-values to evaluate whether these variables have statistically significant correlation with the target variable. Performing this regression for a series of variables offers a comprehensive understanding of how environmental conditions, driver behaviors, and collision types influence accident severity.
+
+
+# Data Preparation and Cleaning
+```{r, warning = FALSE, message = FALSE, tidy=TRUE}
+library(readr)
+library(dplyr)
+library(tidyverse)
+library(maps)
+library(ggmap)
+
+df<-read_csv('alleghenycounty_crashdata_2022.csv')
+
+df_2022<-df %>% filter(CRASH_YEAR==2022)
+print(nrow(df))
+
+df_2022<-df_2022 %>% filter(is.na(df_2022['FATAL'])!=TRUE)
+print(nrow(df_2022))
+
+df_2022$FATAL_OR_MAJ_INJ<-factor(as.integer(df_2022$FATAL_OR_MAJ_INJ))
+sum(is.na(df_2022$WEATHER))
+sum(is.na(df_2022$ILLUMINATION))
+sum(is.na(df_2022$ROAD_CONDITION))
+df_2022_plot <- df_2022 %>%
+  mutate(ROAD_CONDITION = factor(ROAD_CONDITION, 
+                                 levels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 98, 99),
+                                 labels = c("Dry", "Wet", "Sand/mud/dirt/oil/gravel", 
+                                            "Snow covered", "Slush", "Ice", "Ice Patches", 
+                                            "Water - standing or moving", "Other", "Unknown (expired)", 
+                                            "Other", "Unknown")),
+         ILLUMINATION = factor(ILLUMINATION,
+                               levels = c(1, 2, 3, 4, 5, 6, 8, 9),
+                               labels = c("Daylight", "Dark – no street lights", 
+                                          "Dark – street lights", "Dusk", "Dawn", 
+                                          "Dark – unknown roadway lighting", "Other", "Other")),
+         WEATHER = factor(WEATHER,
+                          levels = c(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 98, 99),
+                          labels = c("Blowing Sand, Soil, Dirt", "Blowing Snow", "Clear", 
+                                     "Cloudy", "Fog, Smog, Smoke", "Freezing Rain or Freezing Drizzle", 
+                                     "Rain", "Severe Crosswinds", "Sleet or Hail", "Snow", 
+                                     "Other", "Unknown")),
+         DARK=case_when(HOUR_OF_DAY>17 & HOUR_OF_DAY<6~1,TRUE~0),
+         COLLISION_TYPE = factor(COLLISION_TYPE, levels = c(0, 1, 2, 3, 4, 5, 6, 7, 8, 9),
+                                 labels = c("Non collision", "Rear-end", "Head-on", "Rear-to-rear (Backing)",
+                                            "Angle", "Sideswipe (same dir.)", "Sideswipe (Opposite dir.)",
+                                            "Hit fixed object", "Hit pedestrian", "Other or Unknown")),
+         LOCATION_TYPE = factor(LOCATION_TYPE,levels = c("00", "01", "02", "03", "04", "05", "06", "07", "08", "99"),
+                                                labels = c("Not applicable", "Underpass", "Ramp", "Bridge", "Tunnel",
+                                                           "Toll Booth", "Cross over related", "Driveway or Parking Lot",
+                                                           "Ramp and bridge", "Unknown")),
+         INTERSECT_TYPE = factor(INTERSECT_TYPE,
+                                        levels = c("00", "01", "02", "03", "04", "05", 
+                                                   "06", "07", "08", "09", "10", "99", 
+                                                   "11", "12", "13"),
+                                        labels = c("Mid-block", 
+                                                   "Four way intersection", 
+                                                   "T intersection", 
+                                                   "Y intersection", 
+                                                   "Traffic circle or Round About", 
+                                                   "Multi-leg intersection", 
+                                                   "On ramp", 
+                                                   "Off ramp", 
+                                                   "Crossover", 
+                                                   "Railroad crossing", 
+                                                   "Other", 
+                                                   "Unknown (expired)",
+                                                   "Type 11 Description", 
+                                                   "Type 12 Description", 
+                                                   "Type 13 Description")),
+         ROAD_OWNER = factor(ROAD_OWNER,
+                             levels = c(1, 2, 3, 4, 5, 6, 7, 9),
+                             labels = c("Interstate - non turnpike", 
+                                        "State highway", 
+                                        "County road", 
+                                        "Local road or street", 
+                                        "East-West portion of turnpike", 
+                                        "Turnpike spur (extension)", 
+                                        "Private Road", 
+                                        "Other or Unknown")),
+         )
+```
+
+# Exploratory Data Analysis (EDA)
+
+```{r, warning = FALSE, message = FALSE,  fig.width = 15, tidy=TRUE}
+
+df_2022_plot %>% ggplot() +geom_bar(aes(x = factor(ALCOHOL_RELATED))) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) + 
+  facet_grid(~factor(SPEEDING))
+
+
+df_2022_plot %>% filter(ALCOHOL_RELATED==1) %>% ggplot() +
+    geom_bar(aes(x = factor(MUNICIPALITY))) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+df_2022_plot %>% filter(ILLUMINATION=="Dark – street lights") %>% 
+  ggplot() + geom_bar(aes(x = factor(WEATHER))) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+df_2022_plot %>% filter(ILLUMINATION=="Daylight") %>% ggplot() + 
+  geom_bar(aes(x = factor(HOUR_OF_DAY))) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+df_2022_plot %>%
+  ggplot() +
+  geom_bar(aes(x = factor(ALCOHOL_RELATED))) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_grid(~factor(SPEEDING)) +
+  labs(title = "Alcohol-Related Crashes by Speeding Status",
+       x = "Alcohol Related",
+       y = "Count")
+
+df_2022_plot %>%
+  filter(ALCOHOL_RELATED == 1) %>%
+  ggplot() +
+  geom_bar(aes(x = factor(MUNICIPALITY))) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  labs(title = "Alcohol-Related Crashes by Municipality",
+       x = "Municipality",
+       y = "Count")
+
+
+```
+
+# Feature Selection
+Before building models, we identify the most relevant features for predicting our target variable.
+
+```{r, warning = FALSE, message = FALSE, tidy=TRUE}
+library(caret)
+
+# Sample Data Preparation
+set.seed(123)  # Setting a seed for reproducibility
+
+# dataset generation
+model_time_env <- glm(FATAL_OR_MAJ_INJ ~ HOUR_OF_DAY + WEATHER + ILLUMINATION + ROAD_CONDITION, family = binomial, data = df_2022_plot)
+summary(model_time_env)
+
+model1 <- glm(FATAL_OR_MAJ_INJ ~ ILLUMINATION, family=binomial, data=df_2022_plot)
+summary(model1)
+
+model2 <- glm(FATAL_OR_MAJ_INJ ~ ROAD_CONDITION+ILLUMINATION, family=binomial, data=df_2022_plot)
+summary(model2)
+
+
+model3 <- glm(FATAL_OR_MAJ_INJ ~ factor(HOUR_OF_DAY), family=binomial, data=df_2022_plot)
+summary(model3)
+
+model4 <- glm(FATAL_OR_MAJ_INJ ~ factor(COLLISION_TYPE), family=binomial, data=df_2022_plot)
+summary(model4)
+
+```
+
+# Model Building
+We have chosen a subset of features that emerged to be statistically significant in our single feature glm models in the form of FATAL_OR_MAJ_INJ ~ X. In particular, we are interested in assessing whether road conditions are significant when other features are added (which will reduce omission bias) because definitive policy actions can be taken to improve road conditions (i.e. salting the road, having more regular road maintenance, etc). 
+
+```{r, warning = FALSE, message = FALSE, tidy=TRUE}
+# Code to build and train your first model
+new_df<-df_2022_plot[c("FATAL_OR_MAJ_INJ","MUNICIPALITY","HOUR_OF_DAY","ILLUMINATION","COLLISION_TYPE",
+                       "ROAD_CONDITION","SCHOOL_ZONE","LOCATION_TYPE","INTERSECT_TYPE","PERSON_COUNT","PED_COUNT",
+                       "UNBELTED_OCC_COUNT","AGGRESSIVE_DRIVING","UNBELTED","DISTRACTED","CURVED_ROAD",
+                       "HIT_PARKED_VEHICLE","INJURY_OR_FATAL",
+                       "IMPAIRED_DRIVER","ROAD_OWNER","SPEED_LIMIT","TOT_INJ_COUNT")]
+```
+
+# Model Selection and Hypothesis Testing
+We explore several models to find the best one for predicting our target variable.
+
+```{r, warning = FALSE, message = FALSE, tidy=TRUE}
+library(caret)
+library(glmnet)
+
+
+# Splitting the data into training and testing sets
+
+trainingIndex <- createDataPartition(df_2022_plot$FATAL_OR_MAJ_INJ, p = .8, list = FALSE, times = 1)
+trainingData <- new_df[ trainingIndex,]
+testingData <- new_df[-trainingIndex,]
+trainingData<- trainingData %>% filter(is.na(COLLISION_TYPE)==FALSE & is.na(SPEED_LIMIT)==FALSE)
+testingData<- testingData %>% filter(is.na(COLLISION_TYPE)==FALSE & is.na(SPEED_LIMIT)==FALSE)
+
+X <- model.matrix(FATAL_OR_MAJ_INJ ~ ., data = trainingData) # -1 to exclude the intercept
+Y <- as.numeric(trainingData$FATAL_OR_MAJ_INJ)
+
+lasso.model <- cv.glmnet(X, Y, alpha = 1)
+ridge.model <- cv.glmnet(X, Y, alpha = 0)
+
+lasso.coef <- coef(lasso.model, s = "lambda.min")
+print(lasso.coef)
+
+ridge.coef <- coef(ridge.model, s = "lambda.min")
+print(ridge.coef)
+
+print(lasso.model['lambda'])
+print(ridge.model['lambda'])
+
+```
+After performing ridge and lasso (keeping a cutoff of 0.01 for ridge after shrinkage coeff) regularization with the the logistic regression models, the coefficients for these features remain to be statistically significant:
+- Collision Type
+- Curved Road
+- Hour of Day
+- Illumination
+- Impaired Driver
+- Injury or Fatal
+- Intersect Type
+- Location Type
+- Municipality (as one category)
+- Ped Count
+- Road Conditions
+- Road Owner
+- Tot Inj Count
+- Unbelted
+- Unbelted Occ Count
+
+# Analysis of the results from the Ridge Regularization model
+From the ridge model analysis, the top two most influential factors in predicting whether or not an accident had injuries or fatalities based on the 2022 data was the accident being in Municipality 02449 or a slushy road condition. Another factor that seemed to influence the casualty rate was the illumination of the road.
+
+Municipality 02449 corresponds to the North Braddock borough. The Allegheny County Department of Public Works lists the projects that it has completed each year. In 2022 and 2023, road work projects in North Braddock included work on O’Connell Boulevard (completed in June 2022) and Braddock Road (completed in December 2023/January 2024). This work repaved parts of the road and added shoulders. The Federal Highway Administration (FHWA) claims that adding shoulders improves road safety. Still, these improvements may not be addressing the reason why North Braddock has so many accidents that cause injuries. Interestingly, Google Maps shows that a great deal of the land area in North Braddock is covered by a golf course, and the only highway that runs through the borough is a small span of Rte. 30. It may be a coincidence that in the 2022 crash data, North Braddock seems to be a relevant factor to severe crashes; other years might show very different results. Since we cannot identify exactly why North Braddock is influential in our model, as a policy recommendation, we suggest increased first-response presence on North Braddock roadways to be able to quickly address any accidents. According to CBS News, PA first-responder times have been rising, and this could be contributing to more casualties and fatalities on the road. 
+
+Slush road conditions refer to a mix of water and snow on the road. While the PA Department of Transportation provides information about Winter Driving, virtually all of the information is about ice and snow – there is no mention of slush. ABC News affiliate ABC 7 states that slush reduces tire traction and can conceal ice underneath. Slush also tends to occur after a snow or ice storm, and it is possible that drivers think the worst has passed and are not as careful when driving. Another policy recommendation based on this factor is to give drivers increased education about best practices for driving in slushy roads. This could come in the form of news alerts, email blasts, or text warnings so that drivers can be better prepared.
+
+According to the FHWA, lighting can reduce crashes by between 28-42%. Therefore, if lighting impacts crash severity, then it is beneficial to invest in more lighting projects. Currently, there are projects on I-79, I-376, and Walnut Street to improve lighting. Our final policy recommendation based on the analysis is improved street lighting in Allegheny County. According to our analysis, the Penn Lincoln Parkway and Raymond P. Shafer Highway both have a high incidence of lighting-related accidents. By observing Google Maps, we can see that the Penn Lincoln Parkway is actually the same as I-376. This indicates that Allegheny County has taken note of the high rates of accidents with injuries and fatalities and decided to take action. We recommend continuing to monitor accidents on this road to ensure that lighting is not a primary cause of accidents on this parkway. Similarly, the Raymond P. Shafer Highway is another name of I-79. It will be important for Allegheny County to monitor traffic accidents on these roadways to evaluate the efficacy of their lighting projects.
+
+# Spatial Plots
+
+The next step is to plot these accidents spatially to determine whether they are concentrated in certain regions. This will help to narrow our policy recommendation.
+
+## Function for plotting filtered accidents on OpenStreetMap
+```{r, warning = FALSE, message = FALSE}
+library(OpenStreetMap)
+
+plotAccidentsOSM <- function(df, plotTitle){
+  df <- df %>%
+    filter(!is.na(DEC_LONG)) %>%
+    filter(!is.na(DEC_LAT))
+  
+  upperLeft <- c(max(df$DEC_LAT), min(df$DEC_LONG))
+  lowerRight <- c(min(df$DEC_LAT), max(df$DEC_LONG))
+  
+  sa_map <- openmap(upperLeft, lowerRight, 
+                    type = "esri-topo")
+  
+  sa_map2 <- openproj(sa_map)
+  
+  sa_map2_plt <- autoplot(sa_map2) + 
+    xlab("Longitude (°E)") + ylab("Latitude (°S)") + 
+    ggtitle(plotTitle) + 
+    geom_point(data = df,
+               aes(x = DEC_LONG, y = DEC_LAT), # slightly shift the points
+               colour = "red", size =  1)
+  
+  sa_map2_plt
+}
+```
+
+## ILLUMINATION
+```{r, tidy=TRUE}
+darkNoStreetLights_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2)
+
+plotAccidentsOSM(darkNoStreetLights_INJ_FATAL,"INJURY_OR_FATAL, 
+                 ILLUMINATION=Dark - no street lights")
+```
+
+```{r}
+darkNoStreetLights_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2) %>%
+  count(STREET_NAME) %>%
+  arrange(desc(n))
+
+darkNoStreetLights_INJ_FATAL
+```
+```{r}
+darkStreetLights <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 3) %>%
+  count(STREET_NAME) %>%
+  arrange(desc(n))
+
+darkStreetLights
+```
+
+```{r, tidy=TRUE}
+darkStreetLights_PennLinconlnPy_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 3) %>%
+  filter(STREET_NAME == "PENN LINCOLN PY")
+
+plotAccidentsOSM(darkStreetLights_PennLinconlnPy_INJ_FATAL, 
+        "INJURY_OR_FATAL, 
+        ILLUMINATION = Dark with street lights,\n 
+        Street = PENN LINCOLN PY")
+```
+
+Many accidents appear to be happening along Penn Lincoln Py when it's dark, suggesting that more lighting may be necessary.
+
+# CURVED_ROAD = 1
+```{r}
+curvedRoad <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(CURVED_ROAD == 1)
+
+plotAccidentsOSM(curvedRoad, "FATAL_OR_MAJ_INJ, CURVED_ROAD = 1")
+```
+
+Likewise, accidents where curved road happens may need more indicative road signs to get drivers to be more careful and vigilant.
+
+## COLLISION_TYPE = Hit pedestrian
+```{r, tidy=TRUE}
+hitPedestrian <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(COLLISION_TYPE == 8)
+
+plotAccidentsOSM(hitPedestrian, "FATAL_OR_MAJ_INJ, COLLISION_TYPE = Hit pedestrian")
+```
+
+It is also to believe that hitting a pedestrian in a car accident will likely lead to serious or fatal injuries. Judging that such accidents tend to be more common in downtown Pittsburgh, a deeper analysis will be needed to assess whether solutions such as installing more pedestrian crossings will be useful.
+
+#$ IMPAIRED_DRIVER = 1
+```{r}
+impairedDriver <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(IMPAIRED_DRIVER == 1)
+
+plotAccidentsOSM(impairedDriver, "FATAL_OR_MAJ_INJ, IMPAIRED_DRIVER = 1")
+```
+
+## UNBELTED = 1
+```{r}
+unbelted <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(UNBELTED == 1)
+
+plotAccidentsOSM(unbelted, "FATAL_OR_MAJ_INJ, UNBELTED = 1")
+```
+
+## AGGRESSIVE_DRIVING = 1
+```{r}
+aggressiveDriving <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(AGGRESSIVE_DRIVING == 1)
+
+plotAccidentsOSM(aggressiveDriving, "FATAL_OR_MAJ_INJ, AGGRESSIVE_DRIVING = 1")
+```
+
+IMPAIRED_DRIVER, UNBELTED and AGGRESSIVE_DRIVING are indicators of poor driver behaviors but there are no simple solutions to resolve them. However, it is observed that there is a general concentration of accidents for such cases happening within downtown Pittsburgh. Perhaps stricter traffic enforcement is required in that region to get drivers to be better and safer drivers.
+
+A handful of other such spatial plots were also generated but not shown here because we were unable to make any useful inferences due to reasons such as having very few/sparse instances. These plots can be generated from the code uploaded onto GitHub.
+
+# Evaluating model performance
+Of slight interest to us is whether a simple model is able to predict the value of FATAL_OR_MAJ_INJ well given the significant features that were observed earlier. To test this, we fitted a vanilla logistic regression model with the features on the training data before evaluating the performance on test/unknown data.
+```{r, warning = FALSE, message = FALSE, tidy=TRUE}
+
+# glm_model <- glm(FATAL_OR_MAJ_INJ ~ COLLISION_TYPE + CURVED_ROAD + HOUR_OF_DAY + 
+#                    ILLUMINATION + IMPAIRED_DRIVER + INTERSECT_TYPE + LOCATION_TYPE + 
+#                    MUNICIPALITY + PED_COUNT + ROAD_CONDITION + ROAD_OWNER + 
+#                    TOT_INJ_COUNT + UNBELTED + UNBELTED_OCC_COUNT,
+#                  family = binomial(link = "logit"), data = df_2022_plot)
+# summary(glm_model)
+
+glm_model <- glm(FATAL_OR_MAJ_INJ ~ COLLISION_TYPE + CURVED_ROAD + HOUR_OF_DAY + 
+                   ILLUMINATION + IMPAIRED_DRIVER + INTERSECT_TYPE + LOCATION_TYPE + 
+                   MUNICIPALITY + PED_COUNT + ROAD_CONDITION + ROAD_OWNER + 
+                   TOT_INJ_COUNT + UNBELTED + UNBELTED_OCC_COUNT,
+                 family = binomial(link = "logit"), data = trainingData)
+
+
+predicted_probabilities <- predict(glm_model, newdata = testingData, type = "response")
+
+
+predicted_outcome <- ifelse(predicted_probabilities > 0.5, 1, 0)
+
+actual_outcome <- testingData$FATAL_OR_MAJ_INJ
+
+accuracy <- mean(predicted_outcome == actual_outcome)
+
+#Eval
+library(pROC)
+roc_result <- roc(actual_outcome, predicted_probabilities)
+auc_value <- auc(roc_result)
+
+# Print the results
+# print(paste("Accuracy:", accuracy))
+print(paste("AUC:", auc_value))
+
+```
+
+Getting an "AUC: 0.74400305884247" is an indicator that there is definitely not a random chance for predicting 0 or 1. Going further to take action towards our research statement of analysis of environmental factors.
+
+# Conclusions and Future Work
+Our current work looks at how environmental factors and driver behavior influence the severity of accidents. Some policy recommendations we offer include providing better lighting conditions at specific regions. We can estimate whether this will be effective by performing a temporal analysis of crashes at places where lighting projects have been completed such as I-79, I-376, and Walnut Street.
+
+As for the prediction model, our next goal is to refine the model further through exploration of different machine learning techniques such as Decision Trees, Random Forests, Support Vector Machine and Naive Bayes models.
+
+Once we have picked the best model, we would also like to determine whether the proposed model predicts equally well in different municipalities. This can provide some intuition as to whether we may need to employ cost-sensitive learning algorithms to improve predictive accuracy as a whole.
+
+
+
+

@@ -1,0 +1,340 @@
+---
+title: "spatialplots_checkpoint1"
+output: html_document
+date: "2024-04-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include = TRUE, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(modelr)
+library(OpenStreetMap)
+
+# Load 2021 data
+df <- read_csv("alleghenycounty_crashdata_2022.csv")
+```
+
+# Sample of how to use OpenStreetMap
+Taken from https://ajsmit.github.io/Intro_R_Official/mapping-google.html#openstreetmap 
+
+```{r}
+library(OpenStreetMap)
+
+# other 'type' options are "osm", "maptoolkit-topo", "bing", "stamen-toner",
+# "stamen-watercolor", "esri", "esri-topo", "nps", "apple-iphoto", "skobbler";
+# play around with 'zoom' to see what happens; 10 seems just right to me
+sa_map <- openmap(c(40.464070, -79.931711), c(40.454649, -79.911975), 
+                  type = "esri-topo")
+
+# reproject onto WGS84
+sa_map2 <- openproj(sa_map)
+
+# use instead of 'ggplot()'
+sa_map2_plt <- OpenStreetMap::autoplot.OpenStreetMap(sa_map2) + 
+  xlab("Longitude (°E)") + ylab("Latitude (°S)")
+sa_map2_plt
+```
+
+Note: 
+Coordinates are defined as c(latitude, longitude)
+UpperLeft coordinates of a bounding box has most positive latitude and least positive longitude
+LowerRight coordinates of a bounding box has the least positive latitude and most positive longitude
+
+# Function for plotting filtered accidents on OpenStreetMap
+```{r}
+library(OpenStreetMap)
+
+plotAccidentsOSM <- function(df, plotTitle){
+  df <- df %>%
+    filter(!is.na(DEC_LONG)) %>%
+    filter(!is.na(DEC_LAT))
+  
+  upperLeft <- c(max(df$DEC_LAT), min(df$DEC_LONG))
+  lowerRight <- c(min(df$DEC_LAT), max(df$DEC_LONG))
+  
+  sa_map <- openmap(upperLeft, lowerRight, 
+                    type = "esri-topo")
+  
+  sa_map2 <- openproj(sa_map)
+  
+  sa_map2_plt <- autoplot(sa_map2) + 
+    xlab("Longitude (°E)") + ylab("Latitude (°S)") + 
+    ggtitle(plotTitle) + 
+    geom_point(data = df,
+               aes(x = DEC_LONG, y = DEC_LAT), # slightly shift the points
+               colour = "red", size =  1)
+  
+  sa_map2_plt
+}
+```
+
+
+# ROAD_CONDITION = Slush Roads
+```{r}
+slushRoads <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ROAD_CONDITION == 4)
+
+nrow(slushRoads)
+```
+
+# ROAD_CONDITION = Snow covered
+```{r}
+snowRoads <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ROAD_CONDITION == 3)
+
+nrow(slushRoads)
+```
+
+# ILLUMINATION = Dark - no street lights
+```{r}
+darkNoStreetLights <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ILLUMINATION == 2)
+
+plotAccidentsOSM(darkNoStreetLights,"FATAL_OR_MAJ_INJ, ILLUMINATION=Dark - no street lights")
+```
+
+```{r}
+darkNoStreetLights_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2)
+
+plotAccidentsOSM(darkNoStreetLights_INJ_FATAL,"INJURY_OR_FATAL, ILLUMINATION=Dark - no street lights")
+```
+
+```{r}
+darkNoStreetLights_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2) %>%
+  count(STREET_NAME) %>%
+  arrange(desc(n))
+
+darkNoStreetLights_INJ_FATAL
+```
+
+```{r}
+darkNoStreetLights_PENN_LINCOLN_PY_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2) %>%
+  filter(STREET_NAME == "PENN LINCOLN PY")
+
+plotAccidentsOSM(darkNoStreetLights_PENN_LINCOLN_PY_INJ_FATAL, "INJURY_OR_FATAL, ILLUMINATION=Dark - no street lights,\n Street=PENN LINCOLN PY")
+```
+
+
+```{r}
+darkNoStreetLights_RAYMOND_HW_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2) %>%
+  filter(STREET_NAME == "RAYMOND P SHAFER HW")
+
+plotAccidentsOSM(darkNoStreetLights_RAYMOND_HW_INJ_FATAL, "INJURY_OR_FATAL, ILLUMINATION=Dark - no street lights,\n Street=RAYMOND P SHAFER HW")
+```
+
+# ILLUMINATION = Dark with street lights
+```{r}
+darkStreetLights <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ILLUMINATION == 3)
+
+plotAccidentsOSM(darkStreetLights, "FATAL_OR_MAJ_INJ, ILLUMINATION=Dark with street lights")
+```
+
+```{r}
+darkStreetLights <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ILLUMINATION == 3) %>%
+  count(STREET_NAME) %>%
+  arrange(desc(n))
+
+darkStreetLights
+```
+```{r}
+darkStreetLights_PennLinconlnPy <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ILLUMINATION == 3) %>%
+  filter(STREET_NAME == "PENN LINCOLN PY")
+
+plotAccidentsOSM(darkStreetLights_PennLinconlnPy, "FATAL_OR_MAJ_INJ, ILLUMINATION=Dark with street lights,\n Street=PENN LINCOLN PY")
+```
+
+```{r}
+darkStreetLights_PennLinconlnPy_INJ_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 3) %>%
+  filter(STREET_NAME == "PENN LINCOLN PY")
+
+plotAccidentsOSM(darkStreetLights_PennLinconlnPy_INJ_FATAL, "INJURY_OR_FATAL, ILLUMINATION = Dark with street lights,\n Street = PENN LINCOLN PY")
+```
+
+```{r}
+darkStreetLights_zoomIn <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ILLUMINATION == 3) %>%
+  filter(DEC_LAT < 40.5 & DEC_LAT > 40.3) %>%
+  filter(DEC_LONG < -79.8 & DEC_LONG > -80.1)
+
+plotAccidentsOSM(darkStreetLights_zoomIn, "FATAL_OR_MAJ_INJ, ILLUMINATION=Dark with street lights (Zoom In)")
+```
+
+# CURVED_ROAD = 1
+```{r}
+curvedRoad <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(CURVED_ROAD == 1)
+
+plotAccidentsOSM(curvedRoad, "FATAL_OR_MAJ_INJ, CURVED_ROAD = 1")
+```
+
+```{r}
+curvedRoad <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(CURVED_ROAD == 1) %>%
+  count(STREET_NAME) %>%
+  arrange(desc(n))
+
+curvedRoad
+```
+
+
+```{r}
+curvedRoad_PENN <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(CURVED_ROAD == 1) %>%
+  filter(STREET_NAME == "PENN LINCOLN PY")
+
+plotAccidentsOSM(curvedRoad_PENN, "FATAL_OR_MAJ_INJ, CURVED_ROAD = 1,\n STREET=PENN LINCOLN PY")
+```
+
+```{r}
+curvedRoad_BABCOCK <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(CURVED_ROAD == 1) %>%
+  filter(STREET_NAME == "BABCOCK BL")
+
+plotAccidentsOSM(curvedRoad_BABCOCK, "FATAL_OR_MAJ_INJ, CURVED_ROAD = 1,\n STREET=BABCOCK BL")
+```
+
+```{r}
+curvedRoad_FIFTH <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(CURVED_ROAD == 1) %>%
+  filter(STREET_NAME == "FIFTH AV")
+
+plotAccidentsOSM(curvedRoad_FIFTH, "FATAL_OR_MAJ_INJ, CURVED_ROAD = 1,\n STREET=FIFTH AV")
+```
+
+# COLLISION_TYPE = Hit pedestrian
+```{r}
+hitPedestrian <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(COLLISION_TYPE == 8)
+
+plotAccidentsOSM(hitPedestrian, "FATAL_OR_MAJ_INJ, COLLISION_TYPE = Hit pedestrian")
+```
+
+```{r}
+hitPedestrian_zoom <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(COLLISION_TYPE == 8) %>%
+  filter(DEC_LAT < 40.5 & DEC_LAT > 40.4) %>%
+  filter(DEC_LONG < -79.9 & DEC_LONG > -80.05)
+
+plotAccidentsOSM(hitPedestrian_zoom, "FATAL_OR_MAJ_INJ, COLLISION_TYPE = Hit pedestrian (Zoom In)")
+```
+
+# COLLISION_TYPE = Rear-end
+```{r}
+rearEndCollision <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(COLLISION_TYPE == 1)
+
+plotAccidentsOSM(rearEndCollision, "FATAL_OR_MAJ_INJ, COLLISION_TYPE = Rear-end")
+```
+
+# LOCATION_TYPE = Ramp and bridge
+```{r}
+rampAndBridge <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(LOCATION_TYPE == 8)
+
+nrow(rampAndBridge)
+```
+
+# LOCATION_TYPE Bridge
+```{r}
+bridge <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(LOCATION_TYPE == 3)
+
+nrow(bridge)
+```
+
+# MUNICIPALITY = 02449
+```{r}
+municipality02449 <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(MUNICIPALITY == '02449')
+
+nrow(municipality02449)
+```
+
+# INTERSECT_TYPE = Y intersection
+```{r}
+yIntersection <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(INTERSECT_TYPE == '03')
+
+plotAccidentsOSM(yIntersection, "FATAL_OR_MAJ_INJ, INTERSECT_TYPE = Y intersection")
+```
+
+# ROAD_OWNER = County road
+```{r}
+countyRoad <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ROAD_OWNER == 3)
+
+plotAccidentsOSM(countyRoad, "FATAL_OR_MAJ_INJ, ROAD_OWNER = County road")
+```
+
+# ROAD_OWNER = State Highway
+```{r}
+stateHighway <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(ROAD_OWNER == 2)
+
+plotAccidentsOSM(stateHighway, "FATAL_OR_MAJ_INJ, ROAD_OWNER = State Highway")
+```
+
+
+# IMPAIRED_DRIVER = 1
+```{r}
+impairedDriver <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(IMPAIRED_DRIVER == 1)
+
+plotAccidentsOSM(impairedDriver, "FATAL_OR_MAJ_INJ, IMPAIRED_DRIVER = 1")
+```
+
+# UNBELTED = 1
+```{r}
+unbelted <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(UNBELTED == 1)
+
+plotAccidentsOSM(unbelted, "FATAL_OR_MAJ_INJ, UNBELTED = 1")
+```
+
+# AGGRESSIVE_DRIVING = 1
+```{r}
+aggressiveDriving <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(AGGRESSIVE_DRIVING == 1)
+
+plotAccidentsOSM(aggressiveDriving, "FATAL_OR_MAJ_INJ, AGGRESSIVE_DRIVING = 1")
+```
