@@ -1,0 +1,174 @@
+---
+title: "Final Group Project Report"
+author: | 
+  | Team 04 - Akshay Bhandari (abhanda2), Courtney Jones (courtnej), Koo Wei De (weidek),
+  | Nur Arinta Dara Pramadyani (npramady), Victor Ibarra (victori)
+date: "`r Sys.Date()`"
+output: pdf_document
+bibliography: citations.bib
+csl: apa.csl
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, tidy.opts = list(width.cutoff = 60), tidy=TRUE)
+library(formatR)
+```
+
+# GitHub Repository
+https://github.com/npramady/19603EPPGroup.git
+
+# Background and Motivation, Introduction
+Students in this group are not native residents of Pittsburgh and we found that vehicle accidents in Pittsburgh happen quite frequently. It seems that some of the roads here are not in optimal shape. Many roads are particularly difficult to navigate, especially when entering or exiting the city, which sparked our interest to investigate the accidents that have happened in Pittsburgh. 
+
+# Research Question: What do you want to address in your project?
+We want to find the accident hotspots in Pittsburgh and determine the main factors that influence whether an accident will lead to injuries or fatalities. Ideally, these findings will allow us to make policy recommendations that will reduce accidents frequency and/or severity as well as improve road safety.
+
+# Literature Review
+There are multiple known causes to road accidents such as weather conditions (i.e. rain or snow), poor driver behavior (i.e. drunk driving, being distracted, speeding) and lowered visibility (@pines25TopCauses2024). We would like to investigate whether these observations apply to Pittsburgh and where road infrastructure improvements can be made to reduce accidents.
+
+# Data Source & Data Pre-processing
+Data Source: https://data.wprdc.org/dataset/allegheny-county-crash-data
+The data was published by the Western Pennsylvania Regional Data Center and contains all crashes in Allegheny County in 2022. It provides various details of the crash (i.e. speeding, drug involvement), the time at which the accident occurred, the number of drivers and passengers in the car, injuries and fatalities, and information about the location of the crash (i.e. type of intersection, school zones, etc). All of this information can be used as features to predict whether an accident will have fatalities or injuries (with column name of “INJURY_OR_FATAL”).
+
+Plotting the accidents as shown in Figure 1 shows that many accidents are concentrated around downtown, which corroborates with what we know about Pittsburgh: downtown roads are very complicated and tend to be congested. In Figure 2, we plotted the accident counts for column features which were more salient. Aggressive driving, dark illumination, and speeding came up to have the highest accident counts. Figure 3 shows the time distribution of accidents by hour of day. We expected it to be a bimodal distribution with 2 peaks (morning and evening rush hour) but there appeared to be only 1 peak in the afternoon from 2-6pm.
+
+# Objective 1: Determining features that correlate well with the target variable
+Our main goal in this project is to build an interpretable model that can determine features that best correlate with the target variable, INJURY_OR_FATAL, which is binary. Hence, we started with building a logistic regression model using single features. This regression was performed for 13 features representing environmental and driver behavior: (1) ILLUMINATION, (2) ROAD_CONDITION, (3) AGGRESSIVE_DRIVING, (4) LOCATION_TYPE, (5) UNBELTED, (6) DISTRACTED, (7) CURVED_ROAD, (8) IMPAIRED_DRIVER, (9) ROAD_OWNER, (10) SPEED_LIMIT, (11) MUNICIPALITY, (12) SCHOOL_ZONE, (13) WEATHER. We did not include the feature “hour of day” since it directly correlates with the illumination level. 8/13 of  features were found to be statistically significant in the regression.  
+
+We were aware that omission bias may be present in the regression models earlier since only 1 feature was used in each model. To reduce omission bias, we added all 13 features into two different logistic regression models, one with Lasso Regularization and one without. We were motivated to try Lasso Regularization because the technique is known to produce a sparse coefficient vector, implicitly performing feature selection (@tibshiraniLassoSparsityStatistics). 
+
+Figure 4 shows 6/13 features to be statistically significant in the logistic regression model without regularization. The coefficient for “IMPAIRED_DRIVER” is 	0.458264, is statistically significant, and can be interpreted that having an alcohol or drug impaired driver contributes to 58% higher odds of an accident causing injuries or fatalities compared to when the driver is not impaired. The model with regularization assigned coefficients for 10/13 features, with “UNBELTED” having the coefficient with the largest magnitude. This means that whether the passengers are unbelted plays the biggest role in influencing whether an accident leads to injuries or fatalities.
+
+_Limitation in the regression model:_ We did not test for collinearity between our features and we also did not test for combinations of features which could have turned out to be statistically significant.
+
+__Analysis on Illumination conditions__
+
+Surprisingly, the regression coefficients for ILLUMINATION = Dark - street lights and ILLUMINATION = Dark - no street lights are negative. Negative coefficients would mean lowered odds of an accident having injuries or fatalities. However, we believe this is untrue. According to a 2013 study, better lighting conditions reduce the severity of road accidents (@yannisEffectRoadLighting2013). 
+
+_Limitation in the regression model:_ We believe that the regression coefficients do not correctly represent causal effects because there are multiple covariates that we have not accounted for in this regression, of which an important one would be vehicle density. There is typically heavier vehicle traffic in the day, which could explain higher accident counts in general. 
+
+If we assume the common understanding of how poor illumination influences accident outcomes, it is worth looking where injuries and fatalities have been occurring when it is dark, so that we can propose places to invest in more lighting projects. Figures 5 and 6 plot these accidents spatially. Figures 7 and 8 show the top 3 streets where these accidents happen, which both feature Penn Lincoln Parkway and Raymond P. Shafer Highway. This suggests that the city may consider improving lighting conditions in those areas. Coincidentally, there are existing projects on I-376 (which is Penn Lincoln Parkway) and I-79 (which is Raymond P. Shafer Highway) to improve lighting (@airportcorridortransportationassociationI79ImprovementProject2024). We recommend continuing to monitor accidents on these 2 roads to ensure that lighting is not a primary cause of accidents on this parkway. 
+
+__Analysis on Impaired Drivers__
+
+The coefficient assigned to the flag IMPAIRED_DRIVER with Lasso Regularization was very high, as cited earlier. According to the dataset documentation, a driver is considered to be impaired when driving under drug or alcohol influence. We are inclined to believe that alcohol and drugs diminishes attention and perception (@lipariDrivingInfluenceAlcohol2016), which may make these drivers more prone to causing accidents. Figure 10 plots these accidents spatially and there is a sizable number of accidents around downtown Pittsburgh, which could be where law enforcement agencies can station more roadside alcohol and drug tests. Pennsylvania has also implemented harsher penalties for repeat DUI offenders (@tanenbaumRepeatDUIOffenders2022), which reinforces the notion that drunk driving can be very detrimental to society.
+
+__Analysis of the feature ‘Unbelted’__
+
+In our analysis, the flag UNBELTED also shown to have significant correlation with injury causing or fatal accidents. This makes sense since seatbelts are designed to reduce the risk of severe or fatal injury in a vehicle accident, especially for drivers and front seat passengers. The CDC (@centersfordiseasecontrolandpreventionPolicyImpactSeat2023) stated that seat belts can reduce the risk of death by 45% and reduce probability of serious injury by 50%. Currently, Pennsylvania legally requires all occupants in a motor vehicle to wear a seatbelt, However, if you are 18 or older, failure to wear a seatbelt is considered a secondary offense, meaning they can only be ticketed if they are also stopped for other offenses. Policy makers might want to look into interventions to increase overall compliance.
+
+__Exploring Fatal or Major Injuries__
+
+We wanted to narrow our target variable from “INJURY_OR_FATAL” to “FATAL_OR_MAJ_INJ” (a smaller proper subset) to focus on more severe accidents. However, we noted that there were much fewer data points (427), which meant that we had to be more careful with our analysis and interpretations. This became very apparent when the municipality that was assigned the highest coefficient with Lasso Regularization, North Braddock township, was found to actually have just one really bad accident. A high coefficient would generally mean that knowing that an accident happened in North Braddock township gives a large confidence that the accident had fatal or major injuries. This is expected with knowledge of the dataset since 1 out of 1 accident that happened in that municipality in 2022 saw fatal or major injuries. We would have likely found this feature to lead to overfitting if we performed cross validation. 
+
+
+# Objective 2: Analysis of whether completed projects have been effective
+We consider highway projects which include lighting improvements. First on our list is the I-279 Parkway North Improvement Project (wtaePennDOTAnnouncesLong2018) which took place from 2017-2019. The total yearly accidents on I-279 (also called North Hills Expressway) each year is plotted in Figure 11. The other projects we found include the I-579 (known as Crosstown Boulevard) Cap Project (@ewsConstructionLeadsOvernight2020) completed in 2020 and Route 22 (otherwise known as William Penn Highway) overhead light project (@kuharchikconstructionRoute22Get2009) completed in 2009. If we naively apply a regular OLS linear model, as shown in Figure 12, we might conclude that the light improvement projects increase accidents. However, when we plot the accident counts on multiple expressways as we see in Figure 13, we can easily observe that there are likely some parallel time trends that apply to all expressways, such as the sharp dip in accident counts in 2018. 
+
+To determine the impact of the lighting improvements across different expressways, we needed a linear model which takes into account multiple group fixed effects. This was possible with the ‘felm’ function (@rdocumentationFelmFitLinear), which allows us to define the year and street name as time and fixed effects respectively, and also cluster the instances using street name. The model summary in Figure 14 show that the lighting improvement projects do reduce the 3 accident counts by the following quantities
+
+* Accidents in general: -10.485
+* Accidents with fatalities or injuries: -10.008 (statistically significant)
+* Accidents with fatalities or major injuries: 0.159
+
+
+We are relatively confident that lighting improvement projects can improve road safety and we support the upcoming projects on I-376 and I-79.
+
+
+_Model Limitations:_ The projects that we analyzed here are not solely lighting improvement projects; most of them include other road improvement works. Hence, the effects observed by the model may be exaggerated. 
+
+
+# Objective 3: Building a prediction model
+Beyond evaluating statistical significance, we also wanted to look for parameters that can  predict INJURY_OR_FATAL and FATAL_OR_MAJ_INJ in the event of a vehicle crash.
+
+A simple logistic regression model was found to have very high accuracy, suspect of overfitting. As discussed in class, the model performance on the entire dataset is expected to be an overly optimistic estimate. Hence, we split the dataset into 70% training and 30% test, as per the normal practice (@prabhakaranTrainTestSplit). The FATAL_OR_MAJ_INJ test split had 4200 instances (200 True and 4200 False); the INJURY_OR_FATAL test split had 1756 instances (almost equal distribution of True and False)
+
+Next, we built and compared 3 models which employed different techniques to reduce overfitting. AUC is used to evaluate model performance.
+
+* Logistic Regression + Lasso Regularization (employed in Objective 1) 
+* Logistic Regression + Ridge Regularization. L2 regularization adds the square of coefficients to the loss function, nudging the model to pick smaller coefficients and a less complex architecture (@indurajHowDoesL12023). 
+* Random Forest. Individual trees are trained on different partitions of data and then combined, which tends to generalize better (@soniWhyRandomForests2023).
+
+The base/original feature set contains the same 13 features that were mentioned in Objective 1. To improve the model, we wanted to utilize the other features that were not part of the base feature set. We narrowed the list by eliminating features that had more than 60% NA values or contained the same value for all instances. Adding the remaining features individually to the original feature set, we found these features to improve the AUC score.
+
+* PED_COUNT *
+* PERSON_COUNT *** 
+* HIT_PARKED_VEHICLE
+
+The original feature set, together with these new features, make up the “Additional” feature set. 
+
+```{r, echo=FALSE, out.width="100%"}
+knitr:: include_graphics("image0.png",error=FALSE)
+```
+
+Based on the results, we observe that model performance is highest when employing the “Additional” feature set and there are better prediction outcomes for FATAL_OR_MAJ_INJ, possibly due to the skewed distribution of True and False for the FATAL_OR_MAJ_INJ target variable. The random forest model performs the best in predicting both INJURY_OR_FATAL (AUC=0.67) and FATAL_OR_MAJ_INJ (AUC=0.794), followed by the Lasso model.
+
+_Limitation:_ We only used the 2022 dataset and the models may hence not generalize as well to other years. 
+
+# Conclusion
+In this project, we have analyzed the accidents in Allegheny County in 2022, determining some factors to be statistically significant in predicting whether an accident is going to have injuries or fatalities, such as passengers being unbelted and drivers being impaired. While we were unable to empirically prove that poor illumination conditions are more likely to lead to injuries and fatalities, we have shown that existing lighting improvement projects have been effective in reducing injuries and fatalities on the expressways. Hence, we support existing lighting improvement projects on I-376 and I-79. We also recommend having more interventions that increase belting compliance and discourage driving under the influence of alcohol or drugs based on our study of their effects on accident severity. 
+
+We have also been moderately successful in predicting whether an accident is going to have (1) injuries or fatalities, and (2) major injuries or fatalities, with the Random Forest model performing the best in this task. 
+
+As an extension to what we have done, we believe there is value in evaluating whether the model performs differently in the various municipalities and a time series analysis will also be useful to understand how the influence of features on the target variables have changed over the years.
+
+# References
+
+<div id="refs"></div>
+
+# Appendix
+
+```{r, echo=FALSE, out.width="90%"}
+knitr:: include_graphics("image1.png",error=FALSE)
+cat("Figure 1: Spatial plot of all accidents in the Allegheny County.")
+
+knitr:: include_graphics("image2.png",error=FALSE)
+cat("Figure 2: Accident counts where the features were flagged as true.
+ROAD_DESIGN = SHLDR_RELATED | CURVED_ROAD
+SLIPPERY_ROAD = WET_ROAD | SNOW_SLUSH_ROAD | ICY_ROAD")
+
+knitr:: include_graphics("image3.png",error=FALSE)
+cat("Figure 3: Accident counts at different times of day.")
+
+knitr:: include_graphics("image4.png",error=FALSE)
+cat("Figure 4: Statistical significance of features in regression.")
+
+knitr:: include_graphics("image5.png",error=FALSE)
+cat("Figure 5: Spatial plot of all accidents that have injuries or fatalities 
+    when it is dark and there are no street lights.")
+
+knitr:: include_graphics("image6.png",error=FALSE)
+cat("Figure 6: Spatial plot of all accidents that have injuries or fatalities 
+    when it is dark and there are street lights.")
+
+knitr:: include_graphics("image7.png",error=FALSE)
+cat("Figure 7: Top 3 streets with most accidents that have injuries or 
+    fatalities when it is dark and there are no street lights.")
+
+knitr:: include_graphics("image8.png",error=FALSE)
+cat("Figure 8: Top 3 streets with most accidents that have injuries or 
+    fatalities when it is dark and there are street lights.")
+
+knitr:: include_graphics("image9.png",error=FALSE)
+cat("Figure 9: Accidents with injuries or fatalities along Penn Lincoln Py when
+    it is dark and there are street lights")
+
+knitr:: include_graphics("image10.png",error=FALSE)
+cat("Figure 10: Accidents with injuries or fatalities where the driver was 
+    found to be impaired.")
+
+knitr:: include_graphics("image11.png",error=FALSE)
+cat("Figure 11: Total number of accidents along North Hills Expressway")
+
+knitr:: include_graphics("image12.png",error=FALSE)
+cat("Figure 12: Regression Model of Light Improvement Project without
+    accounting for time and fixed effects")
+
+knitr:: include_graphics("image13.png",error=FALSE)
+cat("Figure 13: Total number of accidents along 5 streets/expressways")
+
+knitr:: include_graphics("image14.png",error=FALSE)
+cat("Figure 14: Regression Model of Light Improvement Project accounting for 
+    time and fixed effects")
+```
+

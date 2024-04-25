@@ -1,0 +1,91 @@
+---
+title: "Spatial Plots"
+output: pdf_document
+date: "2024-04-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+df <- read_csv("alleghenycounty_crashdata_2022.csv")
+```
+
+## Function for plotting filtered accidents on OpenStreetMap
+```{r, warning = FALSE, message = FALSE}
+library(OpenStreetMap)
+
+plotAccidentsOSM <- function(df, plotTitle){
+  df <- df %>%
+    filter(!is.na(DEC_LONG)) %>%
+    filter(!is.na(DEC_LAT))
+  
+  upperLeft <- c(max(df$DEC_LAT), min(df$DEC_LONG))
+  lowerRight <- c(min(df$DEC_LAT), max(df$DEC_LONG))
+  
+  sa_map <- openmap(upperLeft, lowerRight, 
+                    type = "esri-topo")
+  
+  sa_map2 <- openproj(sa_map)
+  
+  sa_map2_plt <- autoplot(sa_map2) + 
+    xlab("Longitude (°E)") + ylab("Latitude (°S)") + 
+    ggtitle(plotTitle) + 
+    geom_point(data = df,
+               aes(x = DEC_LONG, y = DEC_LAT), # slightly shift the points
+               colour = "red", size =  1)
+  
+  sa_map2_plt
+}
+```
+
+## ILLUMINATION
+```{r, tidy=TRUE}
+darkNoStreetLights_INJURY_OR_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2)
+plotAccidentsOSM(darkNoStreetLights_INJURY_OR_FATAL,"INJURY_OR_FATAL, ILLUMINATION=Dark - no street lights")
+
+darkWithStreetLights_INJURY_OR_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 3)
+plotAccidentsOSM(darkWithStreetLights_INJURY_OR_FATAL,"INJURY_OR_FATAL, ILLUMINATION=Dark - street lights")
+```
+
+```{r, tidy=TRUE}
+darkNoStreetLights_INJURY_OR_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 2) %>%
+  count(STREET_NAME) %>%
+  arrange(desc(n))
+
+darkNoStreetLights_INJURY_OR_FATAL
+
+
+darkWithStreetLights_INJURY_OR_FATAL <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  filter(ILLUMINATION == 3) %>%
+  count(STREET_NAME) %>%
+  arrange(desc(n))
+
+darkWithStreetLights_INJURY_OR_FATAL
+```
+
+```{r, tidy=TRUE}
+darkWithStreetLights_PennLinconlnPy_INJURY_OR_FATAL <- df %>%
+filter(INJURY_OR_FATAL == 1) %>%
+filter(ILLUMINATION == 3) %>%
+filter(STREET_NAME == "PENN LINCOLN PY")
+
+plotAccidentsOSM(darkWithStreetLights_PennLinconlnPy_INJURY_OR_FATAL, "INJURY_OR_FATAL,
+ILLUMINATION = Dark with street lights, Street = PENN LINCOLN PY")
+```
+
+## IMPAIRED DRIVERS
+```{r, tidy=TRUE}
+impairedDriver <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  filter(IMPAIRED_DRIVER == 1)
+
+plotAccidentsOSM(impairedDriver, "FATAL_OR_MAJ_INJ, IMPAIRED_DRIVER = 1")
+```

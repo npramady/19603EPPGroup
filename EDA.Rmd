@@ -1,0 +1,92 @@
+---
+title: "EDA"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+df <- read_csv("alleghenycounty_crashdata_2022.csv")
+```
+
+# Exploration
+```{r}
+str(df)
+```
+
+```{r}
+nrow(df)
+
+df_fatal_maj <- df %>% filter(FATAL_OR_MAJ_INJ==TRUE)
+nrow(df_fatal_maj)
+
+df_inj_fatal <- df %>% filter(INJURY_OR_FATAL==TRUE)
+nrow(df_inj_fatal)
+```
+
+
+# Breaking down accidents by possible correlators
+```{r}
+df <- df %>%
+  mutate(ROAD_DESIGN = SHLDR_RELATED | CURVED_ROAD) %>%
+  mutate(SLIPPERY_ROAD = WET_ROAD | SNOW_SLUSH_ROAD | ICY_ROAD) %>%
+  mutate(cause_count = ROAD_DESIGN+SLIPPERY_ROAD+DEER_RELATED+ALCOHOL_RELATED+ILLUMINATION_DARK+
+                        DRUG_RELATED+SPEEDING+DISTRACTED+AGGRESSIVE_DRIVING+FATIGUE_ASLEEP+VEHICLE_FAILURE+
+                        PHANTOM_VEHICLE+TAILGATING+RUNNING_RED_LT) %>%
+  mutate(cause = case_when(
+            cause_count==0~"UNKNOWN",
+            cause_count==1~(case_when(
+              ROAD_DESIGN==1~"ROAD_DESIGN",
+              SLIPPERY_ROAD==1~"SLIPPERY_ROAD",
+              DEER_RELATED==1~"DEER_RELATED",
+              ALCOHOL_RELATED==1~"ALCOHOL_RELATED",
+              ILLUMINATION_DARK==1~"ILLUMINATION_DARK",
+              DRUG_RELATED==1~"DRUG_RELATED",
+              SPEEDING==1~"SPEEDING",
+              DISTRACTED==1~"DISTRACTED",
+              AGGRESSIVE_DRIVING==1~"AGGRESSIVE_DRIVING",
+              FATIGUE_ASLEEP==1~"FATIGUE_ASLEEP",
+              VEHICLE_FAILURE==1~"VEHICLE_FAILURE",
+              PHANTOM_VEHICLE==1~"PHANTOM_VEHICLE",
+              TAILGATING==1~"TAILGATING",
+              RUNNING_RED_LT==1~"RUNNING_RED_LT"
+              )
+            ),
+            cause_count>1~"MULTIPLE_CAUSES")
+        )
+
+df_causes <- df %>%
+  filter(INJURY_OR_FATAL==1) %>%
+  select(ROAD_DESIGN,SLIPPERY_ROAD,ALCOHOL_RELATED,DEER_RELATED,ILLUMINATION_DARK,
+         DRUG_RELATED,SPEEDING_RELATED,DISTRACTED,AGGRESSIVE_DRIVING,AGGRESSIVE_DRIVING,
+         FATIGUE_ASLEEP,VEHICLE_FAILURE,PHANTOM_VEHICLE,RUNNING_RED_LT)
+
+causes_count <- data.frame(cause = names(colSums(df_causes)), count = colSums(df_causes), row.names=NULL)
+ggplot(data=causes_count, aes(x=cause, y=count)) +
+  geom_bar(stat="identity") + 
+  theme(axis.text.x = element_text(angle = 30, hjust = 0.5, vjust = 0.5))
+```
+
+# Breaking down accidents by time
+```{r}
+df_hour_noNA99<-subset(df,!is.na(HOUR_OF_DAY)) %>%
+                     filter(!HOUR_OF_DAY==99)
+ggplot(data=df_hour_noNA99) + geom_bar(aes(x=HOUR_OF_DAY))
+```
+
+# Streets with most accidents
+```{r}
+df %>% group_by(STREET_NAME) %>%
+  summarise(n_accidents = n(), INJURY_OR_FATAL = sum(INJURY_OR_FATAL), FATAL_OR_MAJ_INJ = sum(FATAL_OR_MAJ_INJ),
+            INJURY_OR_FATAL_ratio = sum(INJURY_OR_FATAL)/n()) %>%
+  arrange(desc(n_accidents))
+```
+# Municipalities with most accidents
+```{r}
+df %>% group_by(MUNICIPALITY) %>%
+  summarise(n_accidents = n(), INJURY_OR_FATAL = sum(INJURY_OR_FATAL), FATAL_OR_MAJ_INJ = sum(FATAL_OR_MAJ_INJ),
+            INJURY_OR_FATAL_ratio = sum(INJURY_OR_FATAL)/n()) %>%
+  arrange(desc(n_accidents))
+```
+

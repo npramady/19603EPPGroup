@@ -1,0 +1,169 @@
+---
+title: "Lighting Projects"
+output: pdf_document
+date: "2024-04-20"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+df <- read_csv("alleghenycounty_crashdata_2004_2022.csv")
+```
+
+## Function for plotting filtered accidents on OpenStreetMap
+```{r, warning = FALSE, message = FALSE}
+library(OpenStreetMap)
+
+plotAccidentsOSM <- function(df, plotTitle){
+  df <- df %>%
+    filter(!is.na(DEC_LONG)) %>%
+    filter(!is.na(DEC_LAT))
+  
+  upperLeft <- c(max(df$DEC_LAT), min(df$DEC_LONG))
+  lowerRight <- c(min(df$DEC_LAT), max(df$DEC_LONG))
+  
+  sa_map <- openmap(upperLeft, lowerRight, 
+                    type = "esri-topo")
+  
+  sa_map2 <- openproj(sa_map)
+  
+  sa_map2_plt <- autoplot(sa_map2) + 
+    xlab("Longitude (°E)") + ylab("Latitude (°S)") + 
+    ggtitle(plotTitle) + 
+    geom_point(data = df,
+               aes(x = DEC_LONG, y = DEC_LAT), # slightly shift the points
+               colour = "red", size =  1)
+  
+  sa_map2_plt
+}
+```
+
+
+## Spatial plots of all accidents on NORTH HILLS EX
+```{r, tidy=TRUE}
+accidents_NORTH_HILLS_EX <- df %>%
+  filter(STREET_NAME == "NORTH HILLS EX")
+
+accidents_NORTH_HILLS_EX %>%
+  count(CRASH_YEAR)
+
+plotAccidentsOSM(accidents_NORTH_HILLS_EX, "NORTH HILLS EX")
+```
+## Plotting yearly accident count on NORTH HILLS EX
+```{r}
+accidentCount_NorthHillsEx <- df %>%
+  filter(STREET_NAME == "NORTH HILLS EX") %>%
+  count(STREET_NAME, CRASH_YEAR)
+
+accidentCount_NorthHillsEx
+
+ggplot(data=accidentCount_NorthHillsEx) +
+  geom_line(aes(x=CRASH_YEAR,y=n,color=STREET_NAME)) +
+  ylab("Number of accidents")
+```
+
+## Plotting yearly accident count on 5 different expressways
+```{r}
+accidentCount_5Streets <- df %>%
+  filter(STREET_NAME == "NORTH HILLS EX" | STREET_NAME == "PENN LINCOLN PY" | STREET_NAME == "RAYMOND P SHAFER HW" |
+         STREET_NAME == "ALLEGHENY VALLEY EX" | STREET_NAME == "OHIO RIVER BL") %>%
+  count(STREET_NAME, CRASH_YEAR) %>%
+  rename("NumAccidents" = n)
+
+accidentCount_5Streets
+
+ggplot(data=accidentCount_5Streets) +
+  geom_line(aes(x=CRASH_YEAR,y=NumAccidents,color=STREET_NAME)) +
+  # geom_vline(xintercept = 2018) + 
+  # geom_vline(xintercept = 2019) +
+  ylab("Number of accidents")
+```
+## Linear model with multiple group fixed effects
+```{r}
+library(lfe)
+library(stargazer)
+
+accidentCount <- df %>%
+  count(STREET_NAME, CRASH_YEAR) %>%
+  rename("NumAccidents" = n) %>%
+  mutate(LightImprovement = as.numeric((STREET_NAME == "NORTH HILLS EX" & CRASH_YEAR>2019) |
+                                         (STREET_NAME == "CROSSTOWN BL" & CRASH_YEAR>2020)|
+                                         (STREET_NAME == "WILLIAM PENN HW" & CRASH_YEAR>2009)
+                                       )
+         )
+
+injuryFatalCount <- df %>%
+  filter(INJURY_OR_FATAL == 1) %>%
+  count(STREET_NAME, CRASH_YEAR) %>%
+  rename("NumAccidents" = n) %>%
+  mutate(LightImprovement = as.numeric((STREET_NAME == "NORTH HILLS EX" & CRASH_YEAR>2019) |
+                                         (STREET_NAME == "CROSSTOWN BL" & CRASH_YEAR>2020)|
+                                         (STREET_NAME == "WILLIAM PENN HW" & CRASH_YEAR>2009)
+                                       )
+         )
+
+majInjuryFatalCount <- df %>%
+  filter(FATAL_OR_MAJ_INJ == 1) %>%
+  count(STREET_NAME, CRASH_YEAR) %>%
+  rename("NumAccidents" = n) %>%
+  mutate(LightImprovement = as.numeric((STREET_NAME == "NORTH HILLS EX" & CRASH_YEAR>2019) |
+                                         (STREET_NAME == "CROSSTOWN BL" & CRASH_YEAR>2020)|
+                                         (STREET_NAME == "WILLIAM PENN HW" & CRASH_YEAR>2009)
+                                       )
+         )
+
+
+model.1 <- felm(NumAccidents ~ LightImprovement
+                |0
+                |0
+                |0
+                ,data = accidentCount)
+model.2 <- felm(NumAccidents ~ LightImprovement
+                |0
+                |0
+                |0
+                ,data = injuryFatalCount)
+model.3 <- felm(NumAccidents ~ LightImprovement
+                |0
+                |0
+                |0
+                ,data = majInjuryFatalCount)
+
+stargazer(model.1
+  ,model.2
+  ,model.3
+  ,title="Effect of Light Improvement Project without accounting for time and fixed effects"
+  ,type="text"
+  ,model.numbers=FALSE
+  ,column.labels=c("All","Injury or Fatal","Major Injury or Fatal")
+  ,no.space = TRUE)
+```
+
+```{r}
+model.4 <- felm(NumAccidents ~ LightImprovement
+                |CRASH_YEAR + STREET_NAME
+                |0
+                |STREET_NAME
+                ,data = accidentCount)
+model.5 <- felm(NumAccidents ~ LightImprovement
+                |CRASH_YEAR + STREET_NAME
+                |0
+                |STREET_NAME
+                ,data = injuryFatalCount)
+model.6 <- felm(NumAccidents ~ LightImprovement
+                |CRASH_YEAR + STREET_NAME
+                |0
+                |STREET_NAME
+                ,data = majInjuryFatalCount)
+
+stargazer(model.4
+  ,model.5
+  ,model.6
+  ,title="Effect of Light Improvement Project accounting for time and fixed effects"
+  ,type="text"
+  ,model.numbers=FALSE
+  ,column.labels=c("All","Injury or Fatal","Major Injury or Fatal")
+  ,no.space = TRUE)
+```
+
